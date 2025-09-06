@@ -216,12 +216,134 @@ WARNING: Ignoring invalid distribution ~nnxruntime
 ```
 **影响**：可能导致环境不稳定
 
+## 最新解决方案（2025年更新）
+
+### 🎯 快速修复方法（推荐）
+
+基于最新的问题分析，我们发现设置环境变量是最安全有效的解决方案：
+
+#### 步骤1：设置临时环境变量并测试
+```powershell
+# 在PowerShell中执行
+$env:USE_TF = "0"
+$env:USE_TORCH = "1"
+
+# 测试是否修复
+python -c "from transformers import pipeline; print('✅ 修复成功!')"
+```
+
+#### 步骤2：设置永久环境变量
+```powershell
+# 设置用户级永久环境变量
+[Environment]::SetEnvironmentVariable("USE_TF", "0", "User")
+[Environment]::SetEnvironmentVariable("USE_TORCH", "1", "User")
+
+# 验证设置
+[Environment]::GetEnvironmentVariable("USE_TF", "User")    # 应该返回 0
+[Environment]::GetEnvironmentVariable("USE_TORCH", "User") # 应该返回 1
+```
+
+### 🔄 ComfyUI更新后的问题预防
+
+由于您提到每次更新ComfyUI或插件后都会出现这个问题，以下是预防措施：
+
+#### 方案1：启动脚本预设环境变量
+创建一个启动脚本 `start_comfyui_safe.bat`：
+```batch
+@echo off
+echo 设置ComfyUI环境变量...
+set USE_TF=0
+set USE_TORCH=1
+
+echo 启动ComfyUI...
+cd /d "K:\aiapps\comfyui-conda\ComfyUI"
+call conda activate comfy
+python main.py --auto-launch
+
+pause
+```
+
+#### 方案2：在ComfyUI代码中预设
+在ComfyUI的 `main.py` 开头添加：
+```python
+import os
+# 确保使用PyTorch后端，避免TensorFlow冲突
+os.environ['USE_TF'] = '0'
+os.environ['USE_TORCH'] = '1'
+```
+
+#### 方案3：conda环境级别设置
+```powershell
+# 激活comfy环境
+conda activate comfy
+
+# 在conda环境中设置环境变量
+conda env config vars set USE_TF=0
+conda env config vars set USE_TORCH=1
+
+# 重新激活环境使变量生效
+conda deactivate
+conda activate comfy
+```
+
+### 📋 更新后的检查清单
+
+每次更新ComfyUI或插件后，按以下清单检查：
+
+1. **环境变量检查**：
+   ```powershell
+   echo $env:USE_TF    # 应该是 0
+   echo $env:USE_TORCH # 应该是 1
+   ```
+
+2. **快速验证**：
+   ```powershell
+   conda activate comfy
+   python -c "from transformers import pipeline; print('OK')"
+   ```
+
+3. **如果失败，重新设置**：
+   ```powershell
+   $env:USE_TF = "0"
+   $env:USE_TORCH = "1"
+   ```
+
+### 🚨 更新风险管理
+
+#### 更新前备份
+```powershell
+# 1. 备份工作环境
+conda env export > comfy_backup_$(Get-Date -Format "yyyyMMdd").yml
+
+# 2. 记录当前包列表
+pip freeze > packages_backup_$(Get-Date -Format "yyyyMMdd").txt
+
+# 3. 备份环境变量
+echo "USE_TF=$([Environment]::GetEnvironmentVariable('USE_TF', 'User'))" > env_backup.txt
+echo "USE_TORCH=$([Environment]::GetEnvironmentVariable('USE_TORCH', 'User'))" >> env_backup.txt
+```
+
+#### 更新后恢复
+如果更新后出现问题：
+```powershell
+# 1. 重新设置环境变量
+[Environment]::SetEnvironmentVariable("USE_TF", "0", "User")
+[Environment]::SetEnvironmentVariable("USE_TORCH", "1", "User")
+
+# 2. 如果问题严重，恢复环境
+conda env remove -n comfy
+conda env create -f comfy_backup_YYYYMMDD.yml
+```
+
 ## 总结
 
 这个问题的解决关键在于：
 1. **深入诊断**：不被表面错误迷惑，找到真正原因
-2. **理解机制**：了解transformers的后端选择机制
+2. **理解机制**：了解transformers的后端选择机制  
 3. **环境管理**：正确设置环境变量和清理损坏包
 4. **预防为主**：建立良好的环境管理习惯
+5. **更新管理**：做好备份和环境变量预设
 
-通过这次解决过程，我们学到了在遇到复杂导入问题时，需要系统性地分析和诊断，而不是简单地重装包。 
+**核心要点**：每次ComfyUI或插件更新后，确保环境变量 `USE_TF=0` 和 `USE_TORCH=1` 正确设置。这是避免transformers导入问题的关键。
+
+通过这次解决过程，我们学到了在遇到复杂导入问题时，需要系统性地分析和诊断，而不是简单地重装包。环境变量设置是解决transformers后端冲突的最有效方法。 
